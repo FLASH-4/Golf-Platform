@@ -25,7 +25,7 @@ export default function LoginPage() {
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
       <div style={{ width: '100%', maxWidth: '420px' }}>
         <Link href="/" className="btn-ghost" style={{ marginBottom: '24px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-          ← Back
+          ← Home
         </Link>
         <Link href="/" style={{ textDecoration: 'none' }}>
           <div className="font-display" style={{ fontSize: '28px', marginBottom: '48px' }}>

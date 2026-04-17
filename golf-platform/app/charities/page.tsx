@@ -17,12 +17,18 @@ export default async function CharitiesPage({ searchParams }: { searchParams: Pr
         <div style={{ marginBottom: '60px' }}>
           <div className="font-mono" style={{ fontSize: '11px', color: 'var(--lime)', letterSpacing: '0.2em', marginBottom: '16px' }}>CHARITY DIRECTORY</div>
           <h1 className="font-display" style={{ fontSize: 'clamp(48px, 7vw, 96px)', lineHeight: 1, marginBottom: '24px' }}>CAUSES<br />WE SUPPORT</h1>
+          <p style={{ color: 'var(--gray-5)', maxWidth: '720px', lineHeight: 1.7, marginBottom: '24px' }}>
+            You can support a charity through your subscription or make a separate one-time donation.
+          </p>
           {/* Search */}
-          <form method="GET" style={{ display: 'flex', gap: '12px', maxWidth: '440px' }}>
-            <input name="q" defaultValue={q || ''} className="input" placeholder="Search charities..." style={{ flex: 1 }} />
-            <button type="submit" className="btn-lime" style={{ padding: '12px 24px', whiteSpace: 'nowrap' }}>Search</button>
-            {q && <Link href="/charities" className="btn-ghost" style={{ padding: '12px 20px' }}>Clear</Link>}
-          </form>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <form method="GET" style={{ display: 'flex', gap: '12px', maxWidth: '440px', flex: '1 1 440px' }}>
+              <input name="q" defaultValue={q || ''} className="input" placeholder="Search charities..." style={{ flex: 1 }} />
+              <button type="submit" className="btn-lime" style={{ padding: '12px 24px', whiteSpace: 'nowrap' }}>Search</button>
+              {q && <Link href="/charities" className="btn-ghost" style={{ padding: '12px 20px' }}>Clear</Link>}
+            </form>
+            <Link href="/donate" className="btn-ghost" style={{ padding: '12px 20px', whiteSpace: 'nowrap' }}>Donate separately</Link>
+          </div>
         </div>
 
         {(!charities || charities.length === 0) && (

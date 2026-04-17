@@ -7,7 +7,7 @@ export default function HomePage() {
       <Navbar />
 
       {/* HERO */}
-      <section style={{
+      <section className="home-hero" style={{
         minHeight: '100vh', display: 'flex', flexDirection: 'column',
         justifyContent: 'center', padding: '120px 40px 80px',
         position: 'relative', overflow: 'hidden',
@@ -31,7 +31,7 @@ export default function HomePage() {
             display: 'flex', alignItems: 'center', gap: '12px',
           }}>
             <span style={{ width: '32px', height: '1px', background: 'var(--lime)', display: 'inline-block' }} />
-            Monthly draws · Charity giving · Real prizes
+            Charity first · Monthly draws · Real prizes
           </div>
 
           <h1 className="font-display animate-fade-up animate-delay-2" style={{ fontSize: 'clamp(72px, 12vw, 160px)', lineHeight: 0.9, color: 'var(--white)', marginBottom: '8px' }}>PLAY</h1>
@@ -42,16 +42,22 @@ export default function HomePage() {
             fontSize: '18px', color: 'var(--gray-6)', fontWeight: 300,
             maxWidth: '520px', lineHeight: 1.7, marginBottom: '48px',
           }}>
-            Submit your Stableford scores, enter monthly draws for real prize pools, and support a charity you believe in — all in one subscription.
+            Turn your Stableford scores into monthly chances to win while helping a charity you care about every single month.
           </p>
 
           <div className="animate-fade-up animate-delay-5" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <Link href="/signup" className="btn-lime" style={{ fontSize: '16px', padding: '16px 40px' }}>Start for £10/month</Link>
             <Link href="/how-it-works" className="btn-ghost" style={{ fontSize: '16px', padding: '16px 40px' }}>How it works</Link>
           </div>
+
+          <div className="animate-fade-up animate-delay-5" style={{ marginTop: '36px', maxWidth: '620px', borderLeft: '2px solid var(--lime)', paddingLeft: '20px' }}>
+            <p style={{ fontSize: '15px', lineHeight: 1.8, color: 'var(--gray-6)' }}>
+              Your subscription supports a real prize pool and sends a portion to the charity you choose. Win if your scores match the draw, or make a difference even when they do not.
+            </p>
+          </div>
         </div>
 
-        <div className="animate-fade-up animate-delay-5" style={{ position: 'absolute', bottom: '60px', right: '40px', display: 'flex', gap: '48px' }}>
+        <div className="animate-fade-up animate-delay-5 home-hero-metrics" style={{ position: 'absolute', bottom: '60px', right: '40px', display: 'flex', gap: '48px' }}>
           {[['40%', 'Jackpot pool'], ['35%', '4-match prize'], ['10%+', 'To charity']].map(([num, label]) => (
             <div key={label} style={{ textAlign: 'right' }}>
               <div className="font-display" style={{ fontSize: '40px', color: 'var(--lime)', lineHeight: 1 }}>{num}</div>
@@ -63,10 +69,25 @@ export default function HomePage() {
 
       {/* TICKER */}
       <div style={{ borderTop: '1px solid var(--gray-3)', borderBottom: '1px solid var(--gray-3)', padding: '14px 0', overflow: 'hidden' }}>
-        <div className="ticker">
-          {Array(6).fill('MONTHLY DRAWS · CHARITY IMPACT · STABLEFORD SCORES · REAL PRIZES · JACKPOT ROLLOVER · ').map((t, i) => (
-            <span key={i} className="font-display" style={{ fontSize: '15px', color: 'var(--gray-5)', marginRight: '40px', letterSpacing: '0.1em' }}>{t}</span>
-          ))}
+        <div className="ticker-wrap">
+          <div className="ticker-track">
+            {Array(10).fill(null).map((_, i) => (
+              <span key={`a-${i}`} className="font-display ticker-item" style={{ fontSize: '15px', color: 'var(--gray-5)', letterSpacing: '0.1em' }}>
+                <span>MONTHLY DRAWS ·</span>
+                <span>CHARITY IMPACT ·</span>
+                <span>STABLEFORD SCORES ·</span>
+                <span>REAL PRIZES · JACKPOT ROLLOVER ·</span>
+              </span>
+            ))}
+            {Array(10).fill(null).map((_, i) => (
+              <span key={`b-${i}`} className="font-display ticker-item" style={{ fontSize: '15px', color: 'var(--gray-5)', letterSpacing: '0.1em' }}>
+                <span>MONTHLY DRAWS ·</span>
+                <span>CHARITY IMPACT ·</span>
+                <span>STABLEFORD SCORES ·</span>
+                <span>REAL PRIZES · JACKPOT ROLLOVER ·</span>
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -98,8 +119,8 @@ export default function HomePage() {
       <section style={{ padding: '80px 40px', background: 'var(--gray-1)', borderTop: '1px solid var(--gray-3)', borderBottom: '1px solid var(--gray-3)' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
           <div style={{ marginBottom: '60px' }}>
-            <div className="font-mono" style={{ fontSize: '11px', color: 'var(--lime)', letterSpacing: '0.2em', marginBottom: '16px' }}>PRIZE STRUCTURE</div>
-            <h2 className="font-display" style={{ fontSize: 'clamp(36px, 5vw, 64px)' }}>WHERE YOUR<br />MONEY GOES</h2>
+            <div className="font-mono" style={{ fontSize: '11px', color: 'var(--lime)', letterSpacing: '0.2em', marginBottom: '16px' }}>IMPACT STRUCTURE</div>
+            <h2 className="font-display" style={{ fontSize: 'clamp(36px, 5vw, 64px)' }}>WHAT YOUR<br />SUBSCRIPTION DOES</h2>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
             {[
@@ -134,6 +155,7 @@ export default function HomePage() {
         <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link href="/signup" className="btn-lime" style={{ fontSize: '17px', padding: '18px 48px' }}>Subscribe — £10/month</Link>
           <Link href="/signup?plan=yearly" className="btn-ghost" style={{ fontSize: '17px', padding: '18px 48px' }}>Go yearly — £100/year</Link>
+          <Link href="/donate" className="btn-ghost" style={{ fontSize: '17px', padding: '18px 48px' }}>Donate separately</Link>
         </div>
       </section>
 

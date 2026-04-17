@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -12,18 +12,33 @@ export default function SignupPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [charityId, setCharityId] = useState('')
   const [charityPct, setCharityPct] = useState(10)
   const [charities, setCharities] = useState<Charity[]>([])
+  const [charityOpen, setCharityOpen] = useState(false)
   const [charityError, setCharityError] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const charityMenuRef = useRef<HTMLDivElement | null>(null)
   const router = useRouter()
 
   useEffect(() => {
     fetch('/api/charities')
       .then(res => res.json())
       .then(data => setCharities(Array.isArray(data) ? data : []))
+  }, [])
+
+  useEffect(() => {
+    function handleOutsideClick(event: MouseEvent) {
+      if (!charityMenuRef.current) return
+      if (!charityMenuRef.current.contains(event.target as Node)) {
+        setCharityOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [])
 
   async function handleSignup(e: React.FormEvent) {
@@ -37,28 +52,111 @@ export default function SignupPage() {
     setLoading(true)
     setError('')
     const supabase = createClient()
-    const { data, error: signupError } = await supabase.auth.signUp({
-      email, password, options: { data: { full_name: name } }
-    })
-    if (signupError) { setError(signupError.message); setLoading(false); return }
-    if (data.user) {
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        email,
-        full_name: name,
-        charity_id: charityId,
-        charity_percentage: charityPct,
-        role: 'user',
+
+    const startCheckout = async () => {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
       })
+      const d = await res.json()
+      if (!res.ok) {
+        setError(d.error || 'Checkout failed. Please try again.')
+        setLoading(false)
+        return
+      }
+      if (d.url) {
+        window.location.href = d.url
+        return
+      }
+      setError('Checkout failed. Please try again.')
+      setLoading(false)
     }
-    const res = await fetch('/api/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan }),
+
+    // Try sign-in first to avoid triggering signup email throttles for existing accounts.
+    const { error: existingSignInError } = await supabase.auth.signInWithPassword({ email, password })
+    if (!existingSignInError) {
+      await startCheckout()
+      return
+    }
+
+    const existingSignInMessage = existingSignInError.message.toLowerCase()
+    if (existingSignInMessage.includes('email not confirmed')) {
+      setError('This account exists but email is not confirmed. Verify email first, then sign in and continue to checkout.')
+      setLoading(false)
+      return
+    }
+
+    if (!existingSignInMessage.includes('invalid login credentials')) {
+      setError(existingSignInError.message)
+      setLoading(false)
+      return
+    }
+
+    const { data, error: signupError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: name,
+        },
+      },
     })
-    const d = await res.json()
-    if (d.url) window.location.href = d.url
-    else { setError('Checkout failed. Please try again.'); setLoading(false) }
+
+    if (signupError) {
+      const message = signupError.message.toLowerCase()
+      const dbError = message.includes('database error saving new user')
+      const rateLimit = message.includes('email rate limit exceeded')
+
+      if (rateLimit) {
+        // If the account already exists, reuse it and continue checkout.
+        const { error: signInFallbackError } = await supabase.auth.signInWithPassword({ email, password })
+        if (!signInFallbackError) {
+          await startCheckout()
+          return
+        }
+
+        // Local-only bypass: create/confirm user through server admin route to avoid email throttle.
+        const isLocalDev = process.env.NODE_ENV !== 'production' && window.location.hostname === 'localhost'
+        if (isLocalDev) {
+          const devBypass = await fetch('/api/auth/dev-signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, full_name: name }),
+          })
+          if (devBypass.ok) {
+            const { error: signInAfterBypassError } = await supabase.auth.signInWithPassword({ email, password })
+            if (!signInAfterBypassError) {
+              await startCheckout()
+              return
+            }
+          }
+        }
+      }
+
+      setError(
+        dbError
+          ? 'Signup failed due to auth database trigger configuration. Please run the latest Supabase SQL setup and try again.'
+          : rateLimit
+            ? 'Too many signup emails were sent. Please try again later, or sign in if this account already exists.'
+            : signupError.message
+      )
+      setLoading(false)
+      return
+    }
+
+    // Supabase may create the user without returning a session when email confirmation is enabled.
+    if (!data.session) {
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+      if (signInError) {
+        setError('Account created, but checkout requires an active session. Please verify your email, then sign in and subscribe from pricing.')
+        setLoading(false)
+        return
+      }
+    }
+
+    // Profile row is created by DB trigger; avoid direct client writes during signup.
+    await startCheckout()
   }
 
   const steps = ['Plan', 'Charity', 'Account']
@@ -117,10 +215,36 @@ export default function SignupPage() {
             <p style={{ color: 'var(--gray-5)', marginBottom: '32px' }}>Who do you want to support? You can change this anytime.</p>
             <div style={{ marginBottom: '24px' }}>
               <label style={{ fontSize: '11px', color: 'var(--gray-5)', letterSpacing: '0.1em', display: 'block', marginBottom: '10px' }}>SELECT CHARITY</label>
-              <select className="input" value={charityId} onChange={e => { setCharityId(e.target.value); setCharityError('') }}>
-                <option value="">— Select a charity —</option>
-                {charities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <div className={`charity-dropdown ${charityOpen ? 'open' : ''}`} ref={charityMenuRef}>
+                <button
+                  type="button"
+                  className="charity-dropdown-trigger"
+                  onClick={() => setCharityOpen(v => !v)}
+                  aria-expanded={charityOpen}
+                >
+                  <span>{charities.find(c => c.id === charityId)?.name || '— Select a charity —'}</span>
+                  <span className="charity-dropdown-arrow" aria-hidden="true">▾</span>
+                </button>
+                <div className="charity-dropdown-menu">
+                  {charities.length === 0 && (
+                    <div className="charity-dropdown-empty">No charities available</div>
+                  )}
+                  {charities.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className={`charity-dropdown-item ${charityId === c.id ? 'selected' : ''}`}
+                      onClick={() => {
+                        setCharityId(c.id)
+                        setCharityError('')
+                        setCharityOpen(false)
+                      }}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {charityError && <p style={{ color: '#f87171', marginTop: '8px', fontSize: '13px' }}>{charityError}</p>}
             </div>
             <div style={{ marginBottom: '32px' }}>
@@ -165,7 +289,28 @@ export default function SignupPage() {
               </div>
               <div>
                 <label style={{ fontSize: '11px', color: 'var(--gray-5)', letterSpacing: '0.1em', display: 'block', marginBottom: '8px' }}>PASSWORD</label>
-                <input className="input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min. 8 characters" minLength={8} required />
+                <div style={{ position: 'relative' }}>
+                  <input className="input" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Min. 8 characters" minLength={8} required style={{ paddingRight: '92px' }} />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--gray-5)',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      letterSpacing: '0.04em',
+                      fontFamily: 'DM Sans, sans-serif',
+                    }}
+                  >
+                    {showPassword ? 'HIDE' : 'SHOW'}
+                  </button>
+                </div>
               </div>
               {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '2px', padding: '12px 16px', fontSize: '14px', color: '#f87171' }}>{error}</div>}
               <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>

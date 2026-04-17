@@ -101,6 +101,10 @@ export default function DashboardPage() {
 
   async function uploadProof(winnerId: string, file: File) {
     setProofUploading(winnerId)
+    if (!file.type.startsWith('image/')) {
+      setProofUploading(null)
+      return
+    }
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -125,6 +129,15 @@ export default function DashboardPage() {
 
   const totalWon = winners.reduce((sum, w) => sum + (w.prize_amount || 0), 0)
   const pendingWinners = winners.filter(w => w.status === 'pending' && !w.proof_url)
+  const paidWinners = winners.filter(w => w.status === 'paid')
+  const verifiedWinners = winners.filter(w => w.status === 'verified')
+  const rejectedWinners = winners.filter(w => w.status === 'rejected')
+  const paidOutTotal = paidWinners.reduce((sum, w) => sum + (w.prize_amount || 0), 0)
+  const nextDrawDate = (() => {
+    const date = new Date()
+    date.setMonth(date.getMonth() + 1)
+    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  })()
 
   const tabs = [
     { id: 'overview', label: '▪ Overview' },
@@ -135,9 +148,9 @@ export default function DashboardPage() {
   ] as const
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--black)', display: 'flex' }}>
+    <div className="app-shell" style={{ minHeight: '100vh', background: 'var(--black)', display: 'flex' }}>
       {/* Sidebar */}
-      <div style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: '240px', background: 'var(--gray-1)', borderRight: '1px solid var(--gray-3)', display: 'flex', flexDirection: 'column', padding: '32px 0', zIndex: 50 }}>
+      <div className="app-sidebar" style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: '240px', background: 'var(--gray-1)', borderRight: '1px solid var(--gray-3)', display: 'flex', flexDirection: 'column', padding: '32px 0', zIndex: 50 }}>
         <div style={{ padding: '0 24px', marginBottom: '48px' }}>
           <Link href="/" style={{ textDecoration: 'none' }}>
             <span className="font-display" style={{ fontSize: '22px' }}>
@@ -167,7 +180,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Main */}
-      <div style={{ marginLeft: '240px', padding: '48px', flex: 1, minWidth: 0 }}>
+      <div className="app-main" style={{ marginLeft: '240px', padding: '48px', flex: 1, minWidth: 0 }}>
 
         {/* No subscription banner */}
         {!subscription && (
@@ -202,6 +215,22 @@ export default function DashboardPage() {
                   <div style={{ fontSize: '12px', color: 'var(--gray-5)' }}>{card.sub}</div>
                 </div>
               ))}
+            </div>
+
+            <div className="card" style={{ marginBottom: '24px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--gray-5)', letterSpacing: '0.1em', marginBottom: '14px' }}>PARTICIPATION SUMMARY</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                <div>
+                  <div style={{ fontSize: '13px', color: 'var(--gray-5)', marginBottom: '6px' }}>Draws entered</div>
+                  <div className="font-display" style={{ fontSize: '30px', color: 'var(--lime)' }}>{entries.length}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--gray-5)' }}>Your recorded draw history</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '13px', color: 'var(--gray-5)', marginBottom: '6px' }}>Upcoming draw</div>
+                  <div className="font-display" style={{ fontSize: '30px', color: 'var(--lime)' }}>{nextDrawDate}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--gray-5)' }}>Next scheduled monthly draw</div>
+                </div>
+              </div>
             </div>
 
             {pendingWinners.length > 0 && (
@@ -372,7 +401,41 @@ export default function DashboardPage() {
         {activeTab === 'winnings' && (
           <>
             <h1 className="font-display" style={{ fontSize: '48px', marginBottom: '8px' }}>WINNINGS</h1>
-            <p style={{ color: 'var(--gray-5)', marginBottom: '16px' }}>Total won: <span style={{ color: 'var(--lime)', fontFamily: 'Bebas Neue, sans-serif', fontSize: '20px' }}>£{totalWon.toFixed(2)}</span></p>
+            <div className="card" style={{ marginBottom: '24px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--gray-5)', letterSpacing: '0.1em', marginBottom: '14px' }}>WINNINGS OVERVIEW</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '16px' }}>
+                <div>
+                  <div style={{ fontSize: '13px', color: 'var(--gray-5)', marginBottom: '6px' }}>Total won</div>
+                  <div className="font-display" style={{ fontSize: '32px', color: 'var(--lime)' }}>£{totalWon.toFixed(2)}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--gray-5)' }}>{winners.length} prize{winners.length === 1 ? '' : 's'} recorded</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '13px', color: 'var(--gray-5)', marginBottom: '6px' }}>Current payment status</div>
+                  <div className="font-display" style={{ fontSize: '32px', color: pendingWinners.length > 0 ? 'var(--lime)' : paidWinners.length > 0 ? 'var(--white)' : 'var(--gray-5)' }}>
+                    {pendingWinners.length > 0 ? 'Pending proof' : verifiedWinners.length > 0 ? 'Under review' : paidWinners.length > 0 ? 'Paid out' : 'No winnings'}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--gray-5)' }}>
+                    {pendingWinners.length > 0
+                      ? `${pendingWinners.length} awaiting screenshot upload`
+                      : verifiedWinners.length > 0
+                        ? `${verifiedWinners.length} awaiting payout`
+                        : paidWinners.length > 0
+                          ? `${paidWinners.length} marked as paid`
+                          : 'Nothing to claim yet'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '13px', color: 'var(--gray-5)', marginBottom: '6px' }}>Paid out</div>
+                  <div className="font-display" style={{ fontSize: '32px', color: 'var(--lime)' }}>£{paidOutTotal.toFixed(2)}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--gray-5)' }}>{paidWinners.length} completed payout{paidWinners.length === 1 ? '' : 's'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '13px', color: 'var(--gray-5)', marginBottom: '6px' }}>Review queue</div>
+                  <div className="font-display" style={{ fontSize: '32px', color: 'var(--lime)' }}>{verifiedWinners.length}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--gray-5)' }}>{rejectedWinners.length} rejected, {pendingWinners.length} waiting on proof</div>
+                </div>
+              </div>
+            </div>
 
             {winners.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '80px', border: '1px solid var(--gray-3)', borderRadius: '2px', color: 'var(--gray-5)' }}>
@@ -395,10 +458,10 @@ export default function DashboardPage() {
                         </span>
                         {w.status === 'pending' && !w.proof_url && (
                           <div>
-                            <p style={{ fontSize: '12px', color: 'var(--gray-5)', marginBottom: '8px' }}>Upload score screenshot to claim</p>
+                            <p style={{ fontSize: '12px', color: 'var(--gray-5)', marginBottom: '8px' }}>Upload a screenshot of your golf platform scores to claim</p>
                             <label style={{ cursor: 'pointer' }}>
                               <span className="btn-lime" style={{ padding: '8px 18px', fontSize: '13px' }}>
-                                {proofUploading === w.id ? 'Uploading...' : 'Upload proof'}
+                                {proofUploading === w.id ? 'Uploading...' : 'Upload screenshot'}
                               </span>
                               <input type="file" accept="image/*" style={{ display: 'none' }}
                                 onChange={async e => { if (e.target.files?.[0]) await uploadProof(w.id, e.target.files[0]) }} />

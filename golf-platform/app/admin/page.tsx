@@ -167,9 +167,9 @@ export default function AdminPage() {
   ] as const
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--black)', display: 'flex' }}>
+    <div className="app-shell" style={{ minHeight: '100vh', background: 'var(--black)', display: 'flex' }}>
       {/* Sidebar */}
-      <div style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: '240px', background: 'var(--gray-1)', borderRight: '1px solid var(--gray-3)', display: 'flex', flexDirection: 'column', padding: '32px 0', zIndex: 50 }}>
+      <div className="app-sidebar" style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: '240px', background: 'var(--gray-1)', borderRight: '1px solid var(--gray-3)', display: 'flex', flexDirection: 'column', padding: '32px 0', zIndex: 50 }}>
         <div style={{ padding: '0 24px', marginBottom: '8px' }}>
           <Link href="/" style={{ textDecoration: 'none' }}>
             <span className="font-display" style={{ fontSize: '22px' }}>
@@ -192,7 +192,7 @@ export default function AdminPage() {
       </div>
 
       {/* Main */}
-      <div style={{ marginLeft: '240px', padding: '48px', flex: 1, minWidth: 0 }}>
+      <div className="app-main" style={{ marginLeft: '240px', padding: '48px', flex: 1, minWidth: 0 }}>
 
         {/* USERS */}
         {activeTab === 'users' && (

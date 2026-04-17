@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -42,7 +43,28 @@ export default function LoginPage() {
           </div>
           <div>
             <label style={{ fontSize: '12px', color: 'var(--gray-5)', letterSpacing: '0.1em', display: 'block', marginBottom: '8px' }}>PASSWORD</label>
-            <input className="input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
+            <div style={{ position: 'relative' }}>
+              <input className="input" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required style={{ paddingRight: '92px' }} />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--gray-5)',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  letterSpacing: '0.04em',
+                  fontFamily: 'DM Sans, sans-serif',
+                }}
+              >
+                {showPassword ? 'HIDE' : 'SHOW'}
+              </button>
+            </div>
           </div>
           {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '2px', padding: '12px 16px', fontSize: '14px', color: '#f87171' }}>{error}</div>}
           <button type="submit" className="btn-lime" disabled={loading} style={{ marginTop: '8px', width: '100%', textAlign: 'center', opacity: loading ? 0.7 : 1 }}>

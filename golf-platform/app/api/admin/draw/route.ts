@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { generateWinningNumbers, countMatches, calculatePools } from '@/lib/draw-engine'
+import { sendEmail } from '@/lib/email'
 
 // POST: run the full draw — simulate or publish
 export async function POST(req: Request) {
@@ -130,6 +131,25 @@ export async function POST(req: Request) {
     }
 
     if (winnerInserts.length > 0) await supabase.from('winners').insert(winnerInserts)
+
+    // Notify winners by email
+    if (winnerInserts.length > 0) {
+      const winnerIds = Array.from(new Set(entryUpdates.map(u => u.user_id)))
+      const { data: winnerProfiles } = await supabase
+        .from('profiles')
+        .select('id, email, full_name')
+        .in('id', winnerIds)
+
+      for (const w of entryUpdates) {
+        const profile = winnerProfiles?.find(p => p.id === w.user_id)
+        if (!profile?.email) continue
+        await sendEmail({
+          to: profile.email,
+          subject: 'GolfDraw winner notification',
+          html: `<p>Hi ${profile.full_name || 'there'},</p><p>You won the ${w.prize_tier} tier in the latest draw.</p><p>Prize amount: £${w.prize_amount.toFixed(2)}</p><p>Please upload your proof in your dashboard so the admin team can verify and pay out.</p>`,
+        })
+      }
+    }
 
     // Update prize amounts in draw_entries
     for (const u of entryUpdates) {

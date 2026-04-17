@@ -15,17 +15,25 @@ export default function SignupPage() {
   const [charityId, setCharityId] = useState('')
   const [charityPct, setCharityPct] = useState(10)
   const [charities, setCharities] = useState<Charity[]>([])
+  const [charityError, setCharityError] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
-    const supabase = createClient()
-    supabase.from('charities').select('id, name').eq('is_active', true).order('name').then(({ data }) => setCharities(data || []))
+    fetch('/api/charities')
+      .then(res => res.json())
+      .then(data => setCharities(Array.isArray(data) ? data : []))
   }, [])
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
+    if (!charityId) {
+      setStep(2)
+      setCharityError('Please select a charity before continuing.')
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setError('')
     const supabase = createClient()
@@ -38,7 +46,7 @@ export default function SignupPage() {
         id: data.user.id,
         email,
         full_name: name,
-        charity_id: charityId || null,
+        charity_id: charityId,
         charity_percentage: charityPct,
         role: 'user',
       })
@@ -109,10 +117,11 @@ export default function SignupPage() {
             <p style={{ color: 'var(--gray-5)', marginBottom: '32px' }}>Who do you want to support? You can change this anytime.</p>
             <div style={{ marginBottom: '24px' }}>
               <label style={{ fontSize: '11px', color: 'var(--gray-5)', letterSpacing: '0.1em', display: 'block', marginBottom: '10px' }}>SELECT CHARITY</label>
-              <select className="input" value={charityId} onChange={e => setCharityId(e.target.value)}>
-                <option value="">— Choose later —</option>
+              <select className="input" value={charityId} onChange={e => { setCharityId(e.target.value); setCharityError('') }}>
+                <option value="">— Select a charity —</option>
                 {charities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
+              {charityError && <p style={{ color: '#f87171', marginTop: '8px', fontSize: '13px' }}>{charityError}</p>}
             </div>
             <div style={{ marginBottom: '32px' }}>
               <label style={{ fontSize: '11px', color: 'var(--gray-5)', letterSpacing: '0.1em', display: 'block', marginBottom: '10px' }}>
@@ -128,7 +137,14 @@ export default function SignupPage() {
             </div>
             <div style={{ display: 'flex', gap: '12px' }}>
               <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={() => setStep(1)}>← Back</button>
-              <button type="button" className="btn-lime" style={{ flex: 2 }} onClick={() => setStep(3)}>Continue →</button>
+              <button type="button" className="btn-lime" style={{ flex: 2 }} onClick={() => {
+                if (!charityId) {
+                  setCharityError('Please select a charity before continuing.')
+                  return
+                }
+                setCharityError('')
+                setStep(3)
+              }}>Continue →</button>
             </div>
           </>
         )}

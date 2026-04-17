@@ -1,5 +1,6 @@
 import { stripe } from '@/lib/stripe/client'
 import { createClient } from '@/lib/supabase/server'
+import { sendEmail } from '@/lib/email'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
@@ -18,14 +19,16 @@ export async function POST(req: Request) {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as any
     const userId = session?.metadata?.userId
+    const plan = session.metadata?.plan || 'monthly'
     if (userId && session?.customer && session?.subscription) {
+      const daysToAdd = plan === 'yearly' ? 365 : 30
       await supabase.from('subscriptions').upsert({
         user_id: userId,
         stripe_customer_id: session.customer,
         stripe_subscription_id: session.subscription,
-        plan: session.metadata?.plan || 'monthly',
+        plan,
         status: 'active',
-        current_period_end: new Date(Date.now() + 30 * 86400000).toISOString(),
+        current_period_end: new Date(Date.now() + daysToAdd * 86400000).toISOString(),
       }, { onConflict: 'stripe_subscription_id' })
     }
   }
@@ -50,6 +53,12 @@ export async function POST(req: Request) {
         .single()
 
       if (sub) {
+        const { data: profileEmail } = await supabase
+          .from('profiles')
+          .select('email, full_name')
+          .eq('id', sub.user_id)
+          .maybeSingle()
+
         const { data: profile } = await supabase
           .from('profiles')
           .select('charity_id, charity_percentage')
@@ -66,6 +75,19 @@ export async function POST(req: Request) {
             subscription_amount: totalAmount,
             percentage: profile.charity_percentage,
             period_start: new Date((invoice?.period_start || 0) * 1000).toISOString(),
+          })
+        }
+
+        if (profileEmail?.email) {
+          const amountText = ((invoice?.amount_paid || 0) / 100).toFixed(2)
+          const charityText = profile?.charity_id
+            ? `Your selected charity allocation has been recorded (${profile.charity_percentage}%).`
+            : 'You have not selected a charity yet.'
+
+          await sendEmail({
+            to: profileEmail.email,
+            subject: 'GolfDraw payment received',
+            html: `<p>Hi ${profileEmail.full_name || 'there'},</p><p>We received your subscription payment of £${amountText}.</p><p>${charityText}</p><p>Thanks for supporting GolfDraw.</p>`,
           })
         }
       }
@@ -87,6 +109,28 @@ export async function POST(req: Request) {
       await supabase.from('subscriptions')
         .update({ status: 'lapsed' })
         .eq('stripe_subscription_id', invoice?.subscription)
+
+      const { data: sub } = await supabase
+        .from('subscriptions')
+        .select('user_id')
+        .eq('stripe_subscription_id', invoice.subscription)
+        .maybeSingle()
+
+      if (sub?.user_id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('email, full_name')
+          .eq('id', sub.user_id)
+          .maybeSingle()
+
+        if (profile?.email) {
+          await sendEmail({
+            to: profile.email,
+            subject: 'GolfDraw payment failed',
+            html: `<p>Hi ${profile.full_name || 'there'},</p><p>Your recent subscription payment could not be processed.</p><p>Please update your payment method to keep your GolfDraw subscription active.</p>`,
+          })
+        }
+      }
     }
   }
 

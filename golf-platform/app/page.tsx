@@ -142,8 +142,12 @@ export default function HomePage() {
         <span className="font-display" style={{ fontSize: '20px', color: 'var(--gray-5)' }}><span style={{ color: 'var(--lime)' }}>GOLF</span>DRAW</span>
         <span style={{ color: 'var(--gray-5)', fontSize: '13px' }}>© 2026 GolfDraw. All rights reserved.</span>
         <div style={{ display: 'flex', gap: '24px' }}>
-          {['Privacy', 'Terms', 'Contact'].map(l => (
-            <Link key={l} href="#" style={{ color: 'var(--gray-5)', fontSize: '13px', textDecoration: 'none' }}>{l}</Link>
+          {[
+            { label: 'Privacy', href: '/privacy' },
+            { label: 'Terms', href: '/terms' },
+            { label: 'Contact', href: '/contact' },
+          ].map(link => (
+            <Link key={link.label} href={link.href} style={{ color: 'var(--gray-5)', fontSize: '13px', textDecoration: 'none' }}>{link.label}</Link>
           ))}
         </div>
       </footer>

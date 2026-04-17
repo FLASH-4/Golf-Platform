@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { calculatePools } from '@/lib/draw-engine'
 
-type User = { id: string; full_name: string; email: string; role: string; created_at: string; charity_percentage: number; subscriptions: { plan: string; status: string; current_period_end: string }[]; golf_scores: { id: string; score: number; score_date: string }[] }
+type User = { id: string; full_name: string; email: string; role: string; created_at: string; charity_percentage: number; subscriptions: { id: string; plan: string; status: string; current_period_end: string }[]; golf_scores: { id: string; score: number; score_date: string }[] }
 type Draw = { id: string; draw_date: string; status: string; winning_numbers: number[] | null; jackpot_amount: number; pool_4match: number; pool_3match: number; draw_type: string; subscriber_count: number; total_revenue: number; jackpot_carryover: number }
 type Charity = { id: string; name: string; description: string; image_url: string; website: string; is_featured: boolean; is_active: boolean }
 type Winner = { id: string; prize_tier: string; prize_amount: number; status: string; proof_url: string | null; admin_note: string | null; profiles: { full_name: string; email: string }; draws: { draw_date: string; winning_numbers: number[] } }
@@ -135,6 +135,15 @@ export default function AdminPage() {
     await loadAll()
   }
 
+  async function updateUserRole(userId: string, role: 'user' | 'admin') {
+    await fetch('/api/admin/users', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'role', user_id: userId, role }),
+    })
+    await loadAll()
+  }
+
   const activeSubs = users.filter(u => u.subscriptions?.some(s => s.status === 'active')).length
   const totalRevenue = users.reduce((sum, u) => {
     const sub = u.subscriptions?.find(s => s.status === 'active')
@@ -215,7 +224,7 @@ export default function AdminPage() {
                             <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                               <span style={{ fontSize: '13px', color: 'var(--gray-6)' }}>{sub.plan} · renews {sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString('en-GB') : '—'}</span>
                               {['active', 'lapsed', 'cancelled'].map(s => (
-                                <button key={s} onClick={() => updateSubStatus(u.subscriptions[0] as unknown as string, s)}
+                                <button key={s} onClick={() => updateSubStatus(sub.id, s)}
                                   style={{ background: sub.status === s ? 'rgba(200,241,53,0.1)' : 'transparent', border: `1px solid ${sub.status === s ? 'var(--lime)' : 'var(--gray-3)'}`, color: sub.status === s ? 'var(--lime)' : 'var(--gray-5)', padding: '4px 12px', borderRadius: '2px', cursor: 'pointer', fontSize: '12px', fontFamily: 'DM Sans, sans-serif' }}>
                                   {s}
                                 </button>
@@ -223,6 +232,17 @@ export default function AdminPage() {
                             </div>
                           </div>
                         )}
+                        <div style={{ marginBottom: '20px' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--gray-5)', letterSpacing: '0.1em', marginBottom: '8px' }}>ROLE</div>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            {(['user', 'admin'] as const).map(r => (
+                              <button key={r} onClick={() => updateUserRole(u.id, r)}
+                                style={{ background: u.role === r ? 'rgba(200,241,53,0.1)' : 'transparent', border: `1px solid ${u.role === r ? 'var(--lime)' : 'var(--gray-3)'}`, color: u.role === r ? 'var(--lime)' : 'var(--gray-5)', padding: '4px 12px', borderRadius: '2px', cursor: 'pointer', fontSize: '12px', fontFamily: 'DM Sans, sans-serif', textTransform: 'capitalize' }}>
+                                {r}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                         {/* Scores */}
                         <div>
                           <div style={{ fontSize: '11px', color: 'var(--gray-5)', letterSpacing: '0.1em', marginBottom: '8px' }}>GOLF SCORES</div>

@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     payment_method_types: ['card'],
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?subscribed=true`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/signup`,
+    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
     metadata: { userId: user.id, plan },
   }
 

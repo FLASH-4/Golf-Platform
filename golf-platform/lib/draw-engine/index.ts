@@ -1,12 +1,12 @@
 export type DrawMode = 'random' | 'weighted'
 
-/** Generate 5 winning numbers (1–45) */
+/** Generate 5 winning numbers (1-45) */
 export function generateWinningNumbers(
   mode: DrawMode,
-  scoreFrequency?: Record
+  scoreFrequency?: Record<number, number>
 ): number[] {
   if (mode === 'random') {
-    const nums = new Set()
+    const nums = new Set<number>()
     while (nums.size < 5) nums.add(Math.floor(Math.random() * 45) + 1)
     return [...nums]
   }
@@ -17,9 +17,10 @@ export function generateWinningNumbers(
     const weight = scoreFrequency?.[n] ?? 1
     for (let i = 0; i < weight; i++) pool.push(n)
   }
-  const nums = new Set()
+
+  const nums = new Set<number>()
   while (nums.size < 5) {
-    nums.add(pool[Math.floor(Math.random() * pool.length)])
+    nums.add(pool[Math.floor(Math.random() * pool.length)] as number)
   }
   return [...nums]
 }

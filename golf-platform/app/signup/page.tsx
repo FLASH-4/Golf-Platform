@@ -26,6 +26,11 @@ export default function SignupPage() {
   const charityMenuRef = useRef<HTMLDivElement | null>(null)
   const router = useRouter()
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+  const getRedirectBase = () => {
+    const normalized = appUrl.trim().toLowerCase()
+    const isLocalhostConfig = normalized.includes('localhost') || normalized.includes('127.0.0.1')
+    return normalized && !isLocalhostConfig ? appUrl : window.location.origin
+  }
 
   useEffect(() => {
     fetch('/api/charities')
@@ -83,7 +88,7 @@ export default function SignupPage() {
       email,
       password,
       options: {
-        emailRedirectTo: `${appUrl || window.location.origin}/pricing?verified=true&plan=${plan}`,
+        emailRedirectTo: `${getRedirectBase()}/pricing?verified=true&plan=${plan}`,
         data: {
           full_name: name,
         },
@@ -176,7 +181,7 @@ export default function SignupPage() {
       type: 'signup',
       email,
       options: {
-        emailRedirectTo: `${appUrl || window.location.origin}/pricing?verified=true&plan=${plan}`,
+        emailRedirectTo: `${getRedirectBase()}/pricing?verified=true&plan=${plan}`,
       },
     })
 

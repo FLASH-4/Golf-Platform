@@ -76,26 +76,6 @@ export default function SignupPage() {
       setLoading(false)
     }
 
-    // Try sign-in first to avoid triggering signup email throttles for existing accounts.
-    const { error: existingSignInError } = await supabase.auth.signInWithPassword({ email, password })
-    if (!existingSignInError) {
-      await startCheckout()
-      return
-    }
-
-    const existingSignInMessage = existingSignInError.message.toLowerCase()
-    if (existingSignInMessage.includes('email not confirmed')) {
-      setError('This account exists but email is not confirmed. Verify email first, then sign in and continue to checkout.')
-      setLoading(false)
-      return
-    }
-
-    if (!existingSignInMessage.includes('invalid login credentials')) {
-      setError(existingSignInError.message)
-      setLoading(false)
-      return
-    }
-
     const { data, error: signupError } = await supabase.auth.signUp({
       email,
       password,
@@ -111,6 +91,24 @@ export default function SignupPage() {
       const message = signupError.message.toLowerCase()
       const dbError = message.includes('database error saving new user')
       const rateLimit = message.includes('email rate limit exceeded')
+      const alreadyRegistered = message.includes('already registered') || message.includes('user already exists')
+
+      if (alreadyRegistered) {
+        const { error: signInExistingError } = await supabase.auth.signInWithPassword({ email, password })
+        if (!signInExistingError) {
+          await startCheckout()
+          return
+        }
+
+        const signInMessage = signInExistingError.message.toLowerCase()
+        if (signInMessage.includes('email not confirmed')) {
+          setError('This account exists but email is not confirmed. Verify email first, then sign in and continue to checkout.')
+        } else {
+          setError(signInExistingError.message)
+        }
+        setLoading(false)
+        return
+      }
 
       if (rateLimit) {
         // If the account already exists, reuse it and continue checkout.
@@ -151,12 +149,9 @@ export default function SignupPage() {
 
     // Supabase may create the user without returning a session when email confirmation is enabled.
     if (!data.session) {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-      if (signInError) {
-        setNotice('Account created. Please verify your email to activate your session, then continue subscription from Pricing.')
-        setLoading(false)
-        return
-      }
+      setNotice('Account created. Please verify your email to activate your session, then continue subscription from Pricing.')
+      setLoading(false)
+      return
     }
 
     // Profile row is created by DB trigger; avoid direct client writes during signup.

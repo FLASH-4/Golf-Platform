@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { useSearchParams } from 'next/navigation'
 
 type Charity = { id: string; name: string }
 
@@ -25,7 +24,6 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const charityMenuRef = useRef<HTMLDivElement | null>(null)
   const autoContinueTriggeredRef = useRef(false)
-  const searchParams = useSearchParams()
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
   const getRedirectBase = () => {
     const normalized = appUrl.trim().toLowerCase()
@@ -40,11 +38,12 @@ export default function SignupPage() {
   }, [])
 
   useEffect(() => {
-    const requestedPlan = searchParams.get('plan')
+    const params = new URLSearchParams(window.location.search)
+    const requestedPlan = params.get('plan')
     if (requestedPlan === 'yearly' || requestedPlan === 'monthly') {
       setPlan(requestedPlan)
     }
-  }, [searchParams])
+  }, [])
 
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent) {

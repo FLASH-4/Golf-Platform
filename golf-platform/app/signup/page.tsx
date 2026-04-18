@@ -24,6 +24,7 @@ export default function SignupPage() {
   const [resendMessage, setResendMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const charityMenuRef = useRef<HTMLDivElement | null>(null)
+  const autoContinueTriggeredRef = useRef(false)
   const router = useRouter()
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
   const getRedirectBase = () => {
@@ -50,6 +51,72 @@ export default function SignupPage() {
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [])
 
+  async function startCheckout() {
+    const res = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan }),
+    })
+    const d = await res.json()
+    if (!res.ok) {
+      setError(d.error || 'Checkout failed. Please try again.')
+      setLoading(false)
+      return
+    }
+    if (d.url) {
+      window.location.href = d.url
+      return
+    }
+    setError('Checkout failed. Please try again.')
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    const waitingForEmailVerification = notice.toLowerCase().includes('please verify your email')
+    if (!waitingForEmailVerification || !email || !password) {
+      autoContinueTriggeredRef.current = false
+      return
+    }
+
+    let stopped = false
+    let attempts = 0
+    const maxAttempts = 60
+    const intervalMs = 5000
+
+    const interval = window.setInterval(async () => {
+      if (stopped || autoContinueTriggeredRef.current || document.hidden) return
+      attempts += 1
+
+      const supabase = createClient()
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+
+      if (!signInError) {
+        autoContinueTriggeredRef.current = true
+        setError('')
+        setResendMessage('Email verified. Redirecting to checkout...')
+        setLoading(true)
+        await startCheckout()
+        return
+      }
+
+      const message = signInError.message.toLowerCase()
+      const expectedPendingState = message.includes('email not confirmed') || message.includes('invalid login credentials')
+      if (!expectedPendingState) {
+        setError(signInError.message)
+        window.clearInterval(interval)
+      }
+
+      if (attempts >= maxAttempts) {
+        window.clearInterval(interval)
+      }
+    }, intervalMs)
+
+    return () => {
+      stopped = true
+      window.clearInterval(interval)
+    }
+  }, [notice, email, password, plan])
+
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
     if (!charityId) {
@@ -62,27 +129,8 @@ export default function SignupPage() {
     setError('')
     setNotice('')
     setResendMessage('')
+    autoContinueTriggeredRef.current = false
     const supabase = createClient()
-
-    const startCheckout = async () => {
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
-      })
-      const d = await res.json()
-      if (!res.ok) {
-        setError(d.error || 'Checkout failed. Please try again.')
-        setLoading(false)
-        return
-      }
-      if (d.url) {
-        window.location.href = d.url
-        return
-      }
-      setError('Checkout failed. Please try again.')
-      setLoading(false)
-    }
 
     const { data, error: signupError } = await supabase.auth.signUp({
       email,

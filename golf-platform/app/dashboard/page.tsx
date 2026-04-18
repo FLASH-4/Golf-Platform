@@ -41,16 +41,26 @@ export default function DashboardPage() {
     const sessionId = params.get('session_id')
     if (!subscribed || !sessionId) return
 
-    syncSubscription(sessionId)
+    // Small delay to let the Stripe webhook write first; then sync as fallback
+    const timer = setTimeout(() => syncSubscription(sessionId), 1500)
+    return () => clearTimeout(timer)
   }, [])
 
   async function syncSubscription(sessionId: string) {
-    const res = await fetch('/api/subscriptions/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId }),
-    })
-    if (res.ok) {
+    try {
+      const res = await fetch('/api/subscriptions/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      })
+      // Whether or not sync succeeded, reload — webhook may have already written the data
+      await loadAll()
+      if (!res.ok) {
+        // Retry once after 3 more seconds in case webhook was slow
+        setTimeout(loadAll, 3000)
+      }
+    } catch {
+      // Network error — still try to reload in case webhook wrote data
       await loadAll()
     }
   }

@@ -94,7 +94,7 @@ export default function SignupPage() {
       email,
       password,
       options: {
-        emailRedirectTo: `${getRedirectBase()}/pricing?verified=true&plan=${plan}`,
+        emailRedirectTo: `${getRedirectBase()}/auth/callback?next=/pricing?verified=true%26plan=${plan}`,
         data: {
           full_name: name,
         },
@@ -208,7 +208,7 @@ export default function SignupPage() {
       type: 'signup',
       email,
       options: {
-        emailRedirectTo: `${getRedirectBase()}/pricing?verified=true&plan=${plan}`,
+        emailRedirectTo: `${getRedirectBase()}/auth/callback?next=/pricing?verified=true%26plan=${plan}`,
       },
     })
 

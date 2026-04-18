@@ -22,7 +22,12 @@ export default function SignupPage() {
   const [resendLoading, setResendLoading] = useState(false)
   const [resendMessage, setResendMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [verifying, setVerifying] = useState(false)
   const charityMenuRef = useRef<HTMLDivElement | null>(null)
+  // Ref so the auth listener always has the latest plan value without re-subscribing
+  const planRef = useRef(plan)
+  useEffect(() => { planRef.current = plan }, [plan])
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
   const getRedirectBase = () => {
     const normalized = appUrl.trim().toLowerCase()
@@ -51,9 +56,39 @@ export default function SignupPage() {
         setCharityOpen(false)
       }
     }
-
     document.addEventListener('mousedown', handleOutsideClick)
     return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [])
+
+  // When user clicks the verification link (in any tab), Supabase broadcasts
+  // a SIGNED_IN / USER_UPDATED event via the shared localStorage channel.
+  // We catch it here and auto-redirect to checkout in the original signup tab.
+  useEffect(() => {
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user?.email_confirmed_at) {
+        setVerifying(true)
+        setNotice('Email verified! Taking you to payment...')
+        try {
+          const res = await fetch('/api/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan: planRef.current, countryCode: 'GB' }),
+          })
+          const d = await res.json()
+          if (d.url) {
+            window.location.href = d.url
+            return
+          }
+        } catch {
+          // fall through
+        }
+        setVerifying(false)
+        setNotice('')
+        setError('Verified but checkout failed. Please go to Pricing and subscribe.')
+      }
+    })
+    return () => subscription.unsubscribe()
   }, [])
 
   async function startCheckout() {
@@ -95,9 +130,7 @@ export default function SignupPage() {
       password,
       options: {
         emailRedirectTo: `${getRedirectBase()}/auth/callback?next=/pricing?verified=true%26plan=${plan}`,
-        data: {
-          full_name: name,
-        },
+        data: { full_name: name },
       },
     })
 
@@ -109,11 +142,7 @@ export default function SignupPage() {
 
       if (alreadyRegistered) {
         const { error: signInExistingError } = await supabase.auth.signInWithPassword({ email, password })
-        if (!signInExistingError) {
-          await startCheckout()
-          return
-        }
-
+        if (!signInExistingError) { await startCheckout(); return }
         const signInMessage = signInExistingError.message.toLowerCase()
         if (signInMessage.includes('email not confirmed')) {
           setError('This account exists but email is not confirmed. Verify email first, then sign in and continue to checkout.')
@@ -125,14 +154,8 @@ export default function SignupPage() {
       }
 
       if (rateLimit) {
-        // If the account already exists, reuse it and continue checkout.
         const { error: signInFallbackError } = await supabase.auth.signInWithPassword({ email, password })
-        if (!signInFallbackError) {
-          await startCheckout()
-          return
-        }
-
-        // Local-only bypass: create/confirm user through server admin route to avoid email throttle.
+        if (!signInFallbackError) { await startCheckout(); return }
         const isLocalDev = process.env.NODE_ENV !== 'production' && window.location.hostname === 'localhost'
         if (isLocalDev) {
           const devBypass = await fetch('/api/auth/dev-signup', {
@@ -142,10 +165,7 @@ export default function SignupPage() {
           })
           if (devBypass.ok) {
             const { error: signInAfterBypassError } = await supabase.auth.signInWithPassword({ email, password })
-            if (!signInAfterBypassError) {
-              await startCheckout()
-              return
-            }
+            if (!signInAfterBypassError) { await startCheckout(); return }
           }
         }
       }
@@ -164,16 +184,10 @@ export default function SignupPage() {
     const userIdentities = Array.isArray(data.user?.identities) ? data.user.identities : []
     const likelyExistingUser = userIdentities.length === 0
 
-    // Supabase may return no session for newly created users (email confirmation required)
-    // and also for already-registered users (anti-enumeration behavior).
     if (!data.session) {
       if (likelyExistingUser) {
         const { error: signInExistingError } = await supabase.auth.signInWithPassword({ email, password })
-        if (!signInExistingError) {
-          await startCheckout()
-          return
-        }
-
+        if (!signInExistingError) { await startCheckout(); return }
         const signInMessage = signInExistingError.message.toLowerCase()
         if (signInMessage.includes('email not confirmed')) {
           setError('This account exists but email is not confirmed. Verify email first, then continue.')
@@ -184,25 +198,22 @@ export default function SignupPage() {
         return
       }
 
-      setNotice('Account created. Please verify your email to activate your session, then continue subscription from Pricing.')
+      // New user awaiting email confirmation.
+      // The onAuthStateChange listener above will auto-redirect to checkout
+      // the moment they click the verification link — no manual action needed.
+      setNotice('Check your email and click the verification link. This page will automatically continue to payment once you verify.')
       setLoading(false)
       return
     }
 
-    // Profile row is created by DB trigger; avoid direct client writes during signup.
     await startCheckout()
   }
 
   async function handleResendVerification() {
-    if (!email) {
-      setError('Enter your email first, then request a verification resend.')
-      return
-    }
-
+    if (!email) { setError('Enter your email first, then request a verification resend.'); return }
     setResendLoading(true)
     setError('')
     setResendMessage('')
-
     const supabase = createClient()
     const { error: resendError } = await supabase.auth.resend({
       type: 'signup',
@@ -211,13 +222,7 @@ export default function SignupPage() {
         emailRedirectTo: `${getRedirectBase()}/auth/callback?next=/pricing?verified=true%26plan=${plan}`,
       },
     })
-
-    if (resendError) {
-      setError(resendError.message)
-      setResendLoading(false)
-      return
-    }
-
+    if (resendError) { setError(resendError.message); setResendLoading(false); return }
     setResendMessage('Verification email sent. Check inbox and spam/junk folders.')
     setResendLoading(false)
   }
@@ -236,7 +241,6 @@ export default function SignupPage() {
           </span>
         </Link>
 
-        {/* Step indicators */}
         <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
           {steps.map((s, i) => (
             <div key={s} style={{ flex: 1, height: '3px', borderRadius: '2px', background: i + 1 <= step ? 'var(--lime)' : 'var(--gray-3)', transition: 'background 0.3s' }} />
@@ -248,7 +252,12 @@ export default function SignupPage() {
           ))}
         </div>
 
-        {/* Step 1: Plan */}
+        {verifying && (
+          <div style={{ background: 'rgba(200,241,53,0.08)', border: '1px solid rgba(200,241,53,0.3)', borderRadius: '2px', padding: '16px', fontSize: '14px', color: 'var(--lime)', textAlign: 'center', marginBottom: '24px' }}>
+            ✓ Email verified — redirecting to payment...
+          </div>
+        )}
+
         {step === 1 && (
           <>
             <h1 className="font-display" style={{ fontSize: '48px', marginBottom: '8px' }}>CHOOSE PLAN</h1>
@@ -271,7 +280,6 @@ export default function SignupPage() {
           </>
         )}
 
-        {/* Step 2: Charity */}
         {step === 2 && (
           <>
             <h1 className="font-display" style={{ fontSize: '48px', marginBottom: '8px' }}>YOUR CHARITY</h1>
@@ -279,30 +287,14 @@ export default function SignupPage() {
             <div style={{ marginBottom: '24px' }}>
               <label style={{ fontSize: '11px', color: 'var(--gray-5)', letterSpacing: '0.1em', display: 'block', marginBottom: '10px' }}>SELECT CHARITY</label>
               <div className={`charity-dropdown ${charityOpen ? 'open' : ''}`} ref={charityMenuRef}>
-                <button
-                  type="button"
-                  className="charity-dropdown-trigger"
-                  onClick={() => setCharityOpen(v => !v)}
-                  aria-expanded={charityOpen}
-                >
+                <button type="button" className="charity-dropdown-trigger" onClick={() => setCharityOpen(v => !v)} aria-expanded={charityOpen}>
                   <span>{charities.find(c => c.id === charityId)?.name || '— Select a charity —'}</span>
                   <span className="charity-dropdown-arrow" aria-hidden="true">▾</span>
                 </button>
                 <div className="charity-dropdown-menu">
-                  {charities.length === 0 && (
-                    <div className="charity-dropdown-empty">No charities available</div>
-                  )}
+                  {charities.length === 0 && <div className="charity-dropdown-empty">No charities available</div>}
                   {charities.map(c => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      className={`charity-dropdown-item ${charityId === c.id ? 'selected' : ''}`}
-                      onClick={() => {
-                        setCharityId(c.id)
-                        setCharityError('')
-                        setCharityOpen(false)
-                      }}
-                    >
+                    <button key={c.id} type="button" className={`charity-dropdown-item ${charityId === c.id ? 'selected' : ''}`} onClick={() => { setCharityId(c.id); setCharityError(''); setCharityOpen(false) }}>
                       {c.name}
                     </button>
                   ))}
@@ -325,10 +317,7 @@ export default function SignupPage() {
             <div style={{ display: 'flex', gap: '12px' }}>
               <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={() => setStep(1)}>← Back</button>
               <button type="button" className="btn-lime" style={{ flex: 2 }} onClick={() => {
-                if (!charityId) {
-                  setCharityError('Please select a charity before continuing.')
-                  return
-                }
+                if (!charityId) { setCharityError('Please select a charity before continuing.'); return }
                 setCharityError('')
                 setStep(3)
               }}>Continue →</button>
@@ -336,7 +325,6 @@ export default function SignupPage() {
           </>
         )}
 
-        {/* Step 3: Account */}
         {step === 3 && (
           <>
             <h1 className="font-display" style={{ fontSize: '48px', marginBottom: '8px' }}>CREATE ACCOUNT</h1>
@@ -354,37 +342,19 @@ export default function SignupPage() {
                 <label style={{ fontSize: '11px', color: 'var(--gray-5)', letterSpacing: '0.1em', display: 'block', marginBottom: '8px' }}>PASSWORD</label>
                 <div style={{ position: 'relative' }}>
                   <input className="input" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Min. 8 characters" minLength={8} required style={{ paddingRight: '92px' }} />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(v => !v)}
-                    style={{
-                      position: 'absolute',
-                      right: '12px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--gray-5)',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      letterSpacing: '0.04em',
-                      fontFamily: 'DM Sans, sans-serif',
-                    }}
-                  >
+                  <button type="button" onClick={() => setShowPassword(v => !v)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--gray-5)', cursor: 'pointer', fontSize: '12px', letterSpacing: '0.04em', fontFamily: 'DM Sans, sans-serif' }}>
                     {showPassword ? 'HIDE' : 'SHOW'}
                   </button>
                 </div>
               </div>
               {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '2px', padding: '12px 16px', fontSize: '14px', color: '#f87171' }}>{error}</div>}
-              {notice && <div style={{ background: 'rgba(200,241,53,0.08)', border: '1px solid rgba(200,241,53,0.3)', borderRadius: '2px', padding: '12px 16px', fontSize: '14px', color: 'var(--lime)' }}>{notice}</div>}
               {notice && (
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  onClick={handleResendVerification}
-                  disabled={resendLoading}
-                  style={{ width: '100%', opacity: resendLoading ? 0.7 : 1 }}
-                >
+                <div style={{ background: 'rgba(200,241,53,0.08)', border: '1px solid rgba(200,241,53,0.3)', borderRadius: '2px', padding: '12px 16px', fontSize: '14px', color: 'var(--lime)' }}>
+                  {notice}
+                </div>
+              )}
+              {notice && !verifying && (
+                <button type="button" className="btn-ghost" onClick={handleResendVerification} disabled={resendLoading} style={{ width: '100%', opacity: resendLoading ? 0.7 : 1 }}>
                   {resendLoading ? 'Sending verification...' : 'Resend verification email'}
                 </button>
               )}
@@ -395,8 +365,8 @@ export default function SignupPage() {
               )}
               <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
                 <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={() => setStep(2)}>← Back</button>
-                <button type="submit" className="btn-lime" disabled={loading} style={{ flex: 2, opacity: loading ? 0.7 : 1 }}>
-                  {loading ? 'Creating...' : 'Create & Pay'}
+                <button type="submit" className="btn-lime" disabled={loading || verifying} style={{ flex: 2, opacity: (loading || verifying) ? 0.7 : 1 }}>
+                  {loading ? 'Creating...' : verifying ? 'Redirecting...' : 'Create & Pay'}
                 </button>
               </div>
             </form>

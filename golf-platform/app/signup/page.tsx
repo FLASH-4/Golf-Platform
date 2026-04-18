@@ -203,8 +203,29 @@ export default function SignupPage() {
       return
     }
 
-    // Supabase may create the user without returning a session when email confirmation is enabled.
+    const userIdentities = Array.isArray(data.user?.identities) ? data.user.identities : []
+    const likelyExistingUser = userIdentities.length === 0
+
+    // Supabase may return no session for newly created users (email confirmation required)
+    // and also for already-registered users (anti-enumeration behavior).
     if (!data.session) {
+      if (likelyExistingUser) {
+        const { error: signInExistingError } = await supabase.auth.signInWithPassword({ email, password })
+        if (!signInExistingError) {
+          await startCheckout()
+          return
+        }
+
+        const signInMessage = signInExistingError.message.toLowerCase()
+        if (signInMessage.includes('email not confirmed')) {
+          setError('This account exists but email is not confirmed. Verify email first, then continue.')
+        } else {
+          setError(signInExistingError.message)
+        }
+        setLoading(false)
+        return
+      }
+
       setNotice('Account created. Please verify your email to activate your session, then continue subscription from Pricing.')
       setLoading(false)
       return

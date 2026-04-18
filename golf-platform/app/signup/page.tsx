@@ -19,6 +19,7 @@ export default function SignupPage() {
   const [charityOpen, setCharityOpen] = useState(false)
   const [charityError, setCharityError] = useState('')
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
   const charityMenuRef = useRef<HTMLDivElement | null>(null)
   const router = useRouter()
@@ -51,6 +52,7 @@ export default function SignupPage() {
     }
     setLoading(true)
     setError('')
+    setNotice('')
     const supabase = createClient()
 
     const startCheckout = async () => {
@@ -97,6 +99,7 @@ export default function SignupPage() {
       email,
       password,
       options: {
+        emailRedirectTo: `${window.location.origin}/pricing?verified=true&plan=${plan}`,
         data: {
           full_name: name,
         },
@@ -149,7 +152,7 @@ export default function SignupPage() {
     if (!data.session) {
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
       if (signInError) {
-        setError('Account created, but checkout requires an active session. Please verify your email, then sign in and subscribe from pricing.')
+        setNotice('Account created. Please verify your email to activate your session, then continue subscription from Pricing.')
         setLoading(false)
         return
       }
@@ -313,6 +316,7 @@ export default function SignupPage() {
                 </div>
               </div>
               {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '2px', padding: '12px 16px', fontSize: '14px', color: '#f87171' }}>{error}</div>}
+              {notice && <div style={{ background: 'rgba(200,241,53,0.08)', border: '1px solid rgba(200,241,53,0.3)', borderRadius: '2px', padding: '12px 16px', fontSize: '14px', color: 'var(--lime)' }}>{notice}</div>}
               <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
                 <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={() => setStep(2)}>← Back</button>
                 <button type="submit" className="btn-lime" disabled={loading} style={{ flex: 2, opacity: loading ? 0.7 : 1 }}>

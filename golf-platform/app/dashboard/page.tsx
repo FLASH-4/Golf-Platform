@@ -56,27 +56,19 @@ export default function DashboardPage() {
   }
 
   async function loadAll() {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/login'); return }
+    const res = await fetch('/api/dashboard/overview', { cache: 'no-store' })
+    const data = await res.json()
+    if (res.status === 401) { router.push('/login'); return }
+    if (!res.ok) return
 
-    const [{ data: prof }, { data: sub }, { data: sc }, { data: ch }, { data: ent }, { data: win }] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', user.id).single(),
-      supabase.from('subscriptions').select('*').eq('user_id', user.id).eq('status', 'active').maybeSingle(),
-      supabase.from('golf_scores').select('*').eq('user_id', user.id).order('score_date', { ascending: false }),
-      supabase.from('charities').select('id, name').eq('is_active', true).order('name'),
-      supabase.from('draw_entries').select('*, draws(draw_date, status, winning_numbers)').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
-      supabase.from('winners').select('*, draws(draw_date)').eq('user_id', user.id).order('created_at', { ascending: false }),
-    ])
-
-    setProfile(prof)
-    setSubscription(sub || null)
-    setScores(sc || [])
-    setCharities(ch || [])
-    setEntries(ent || [])
-    setWinners(win || [])
-    setCharityId(prof?.charity_id || '')
-    setCharityPct(prof?.charity_percentage || 10)
+    setProfile(data.profile || null)
+    setSubscription(data.subscription || null)
+    setScores(data.scores || [])
+    setCharities(data.charities || [])
+    setEntries(data.entries || [])
+    setWinners(data.winners || [])
+    setCharityId(data.profile?.charity_id || '')
+    setCharityPct(data.profile?.charity_percentage || 10)
   }
 
   async function addScore(e: React.FormEvent) {

@@ -23,7 +23,6 @@ export default function SignupPage() {
   const [resendMessage, setResendMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const charityMenuRef = useRef<HTMLDivElement | null>(null)
-  const autoContinueTriggeredRef = useRef(false)
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
   const getRedirectBase = () => {
     const normalized = appUrl.trim().toLowerCase()
@@ -77,52 +76,6 @@ export default function SignupPage() {
     setLoading(false)
   }
 
-  useEffect(() => {
-    const waitingForEmailVerification = notice.toLowerCase().includes('please verify your email')
-    if (!waitingForEmailVerification || !email || !password) {
-      autoContinueTriggeredRef.current = false
-      return
-    }
-
-    let stopped = false
-    let attempts = 0
-    const maxAttempts = 60
-    const intervalMs = 5000
-
-    const interval = window.setInterval(async () => {
-      if (stopped || autoContinueTriggeredRef.current || document.hidden) return
-      attempts += 1
-
-      const supabase = createClient()
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-
-      if (!signInError) {
-        autoContinueTriggeredRef.current = true
-        setError('')
-        setResendMessage('Email verified. Redirecting to checkout...')
-        setLoading(true)
-        await startCheckout()
-        return
-      }
-
-      const message = signInError.message.toLowerCase()
-      const expectedPendingState = message.includes('email not confirmed') || message.includes('invalid login credentials')
-      if (!expectedPendingState) {
-        setError(signInError.message)
-        window.clearInterval(interval)
-      }
-
-      if (attempts >= maxAttempts) {
-        window.clearInterval(interval)
-      }
-    }, intervalMs)
-
-    return () => {
-      stopped = true
-      window.clearInterval(interval)
-    }
-  }, [notice, email, password, plan])
-
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
     if (!charityId) {
@@ -135,7 +88,6 @@ export default function SignupPage() {
     setError('')
     setNotice('')
     setResendMessage('')
-    autoContinueTriggeredRef.current = false
     const supabase = createClient()
 
     const { data, error: signupError } = await supabase.auth.signUp({

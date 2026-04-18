@@ -30,14 +30,27 @@ export async function POST(req: Request) {
     const plan = session.metadata?.plan || 'monthly'
     if (userId && session?.customer && session?.subscription) {
       const daysToAdd = plan === 'yearly' ? 365 : 30
-      const { error } = await supabase.from('subscriptions').upsert({
+      const payload = {
         user_id: userId,
         stripe_customer_id: session.customer,
         stripe_subscription_id: session.subscription,
         plan,
         status: 'active',
         current_period_end: new Date(Date.now() + daysToAdd * 86400000).toISOString(),
-      }, { onConflict: 'stripe_subscription_id' })
+      }
+
+      const { data: existingSub, error: existingSubError } = await supabase
+        .from('subscriptions')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (existingSubError) return NextResponse.json({ error: existingSubError.message }, { status: 500 })
+
+      const { error } = existingSub
+        ? await supabase.from('subscriptions').update(payload).eq('id', existingSub.id)
+        : await supabase.from('subscriptions').insert(payload)
+
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     }
   }

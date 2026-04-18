@@ -56,14 +56,28 @@ export async function POST(req: Request) {
       : new Date(Date.now() + (plan === 'yearly' ? 365 : 30) * 86400000).toISOString()
 
     const writer = admin ?? supabase
-    const { error } = await writer.from('subscriptions').upsert({
+    const payload = {
       user_id: user.id,
       stripe_customer_id: stripeCustomerId,
       stripe_subscription_id: stripeSubscriptionId,
       plan,
       status: 'active',
       current_period_end: periodEnd,
-    }, { onConflict: 'stripe_subscription_id' })
+    }
+
+    const { data: existingSub, error: existingSubError } = await writer
+      .from('subscriptions')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (existingSubError) {
+      return NextResponse.json({ error: existingSubError.message }, { status: 500 })
+    }
+
+    const { error } = existingSub
+      ? await writer.from('subscriptions').update(payload).eq('id', existingSub.id)
+      : await writer.from('subscriptions').insert(payload)
 
     if (error) {
       const hint = admin

@@ -60,12 +60,19 @@ export default function SignupPage() {
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [])
 
+  // awaitingVerification is set to true only after user submits the signup form
+  // and needs to verify email. This prevents the listener from firing on
+  // page load for users who are already logged in.
+  const awaitingVerification = useRef(false)
+
   // When user clicks the verification link (in any tab), Supabase broadcasts
   // a SIGNED_IN / USER_UPDATED event via the shared localStorage channel.
   // We catch it here and auto-redirect to checkout in the original signup tab.
   useEffect(() => {
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Only act if user actually submitted signup and is waiting for verification
+      if (!awaitingVerification.current) return
       if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user?.email_confirmed_at) {
         setVerifying(true)
         setNotice('Email verified! Taking you to payment...')
@@ -83,9 +90,8 @@ export default function SignupPage() {
         } catch {
           // fall through
         }
-        setVerifying(false)
-        setNotice('')
-        setError('Verified but checkout failed. Please go to Pricing and subscribe.')
+        // Fallback — redirect to pricing with plan so user can manually subscribe
+        window.location.href = `/pricing?verified=true&plan=${planRef.current}`
       }
     })
     return () => subscription.unsubscribe()
@@ -199,8 +205,8 @@ export default function SignupPage() {
       }
 
       // New user awaiting email confirmation.
-      // The onAuthStateChange listener above will auto-redirect to checkout
-      // the moment they click the verification link — no manual action needed.
+      // Set the flag so onAuthStateChange knows to act when verification fires.
+      awaitingVerification.current = true
       setNotice('Check your email and click the verification link. This page will automatically continue to payment once you verify.')
       setLoading(false)
       return

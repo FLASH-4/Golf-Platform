@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -34,6 +34,26 @@ export default function DashboardPage() {
   useEffect(() => {
     loadAll()
   }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const subscribed = params.get('subscribed') === 'true'
+    const sessionId = params.get('session_id')
+    if (!subscribed || !sessionId) return
+
+    syncSubscription(sessionId)
+  }, [])
+
+  async function syncSubscription(sessionId: string) {
+    const res = await fetch('/api/subscriptions/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId }),
+    })
+    if (res.ok) {
+      await loadAll()
+    }
+  }
 
   async function loadAll() {
     const supabase = createClient()

@@ -20,6 +20,8 @@ export default function SignupPage() {
   const [charityError, setCharityError] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendMessage, setResendMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const charityMenuRef = useRef<HTMLDivElement | null>(null)
   const router = useRouter()
@@ -54,6 +56,7 @@ export default function SignupPage() {
     setLoading(true)
     setError('')
     setNotice('')
+    setResendMessage('')
     const supabase = createClient()
 
     const startCheckout = async () => {
@@ -156,6 +159,35 @@ export default function SignupPage() {
 
     // Profile row is created by DB trigger; avoid direct client writes during signup.
     await startCheckout()
+  }
+
+  async function handleResendVerification() {
+    if (!email) {
+      setError('Enter your email first, then request a verification resend.')
+      return
+    }
+
+    setResendLoading(true)
+    setError('')
+    setResendMessage('')
+
+    const supabase = createClient()
+    const { error: resendError } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: `${appUrl || window.location.origin}/pricing?verified=true&plan=${plan}`,
+      },
+    })
+
+    if (resendError) {
+      setError(resendError.message)
+      setResendLoading(false)
+      return
+    }
+
+    setResendMessage('Verification email sent. Check inbox and spam/junk folders.')
+    setResendLoading(false)
   }
 
   const steps = ['Plan', 'Charity', 'Account']
@@ -313,6 +345,22 @@ export default function SignupPage() {
               </div>
               {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '2px', padding: '12px 16px', fontSize: '14px', color: '#f87171' }}>{error}</div>}
               {notice && <div style={{ background: 'rgba(200,241,53,0.08)', border: '1px solid rgba(200,241,53,0.3)', borderRadius: '2px', padding: '12px 16px', fontSize: '14px', color: 'var(--lime)' }}>{notice}</div>}
+              {notice && (
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={handleResendVerification}
+                  disabled={resendLoading}
+                  style={{ width: '100%', opacity: resendLoading ? 0.7 : 1 }}
+                >
+                  {resendLoading ? 'Sending verification...' : 'Resend verification email'}
+                </button>
+              )}
+              {resendMessage && (
+                <div style={{ background: 'rgba(200,241,53,0.08)', border: '1px solid rgba(200,241,53,0.3)', borderRadius: '2px', padding: '12px 16px', fontSize: '14px', color: 'var(--lime)' }}>
+                  {resendMessage}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
                 <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={() => setStep(2)}>← Back</button>
                 <button type="submit" className="btn-lime" disabled={loading} style={{ flex: 2, opacity: loading ? 0.7 : 1 }}>

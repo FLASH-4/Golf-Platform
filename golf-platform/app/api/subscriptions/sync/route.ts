@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { stripe } from '@/lib/stripe/client'
 
 export async function POST(req: Request) {
   try {
     const supabase = await createClient()
+    let admin: ReturnType<typeof createAdminClient> | null = null
+    try {
+      admin = createAdminClient()
+    } catch {
+      admin = null
+    }
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -48,7 +55,8 @@ export async function POST(req: Request) {
       ? new Date(subObj.current_period_end * 1000).toISOString()
       : new Date(Date.now() + (plan === 'yearly' ? 365 : 30) * 86400000).toISOString()
 
-    const { error } = await supabase.from('subscriptions').upsert({
+    const writer = admin ?? supabase
+    const { error } = await writer.from('subscriptions').upsert({
       user_id: user.id,
       stripe_customer_id: stripeCustomerId,
       stripe_subscription_id: stripeSubscriptionId,
@@ -57,7 +65,12 @@ export async function POST(req: Request) {
       current_period_end: periodEnd,
     }, { onConflict: 'stripe_subscription_id' })
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) {
+      const hint = admin
+        ? ''
+        : ' Also set SUPABASE_SERVICE_ROLE_KEY in deployment env for reliable subscription sync.'
+      return NextResponse.json({ error: `${error.message}.${hint}` }, { status: 500 })
+    }
 
     return NextResponse.json({ ok: true })
   } catch (error) {

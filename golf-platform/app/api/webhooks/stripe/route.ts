@@ -1,5 +1,5 @@
 import { stripe } from '@/lib/stripe/client'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { sendEmail } from '@/lib/email'
 import { NextResponse } from 'next/server'
 
@@ -13,7 +13,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  const supabase = await createClient()
+  let supabase: ReturnType<typeof createAdminClient>
+  try {
+    supabase = createAdminClient()
+  } catch {
+    return NextResponse.json(
+      { error: 'SUPABASE_SERVICE_ROLE_KEY is missing. Webhook cannot write subscriptions.' },
+      { status: 500 }
+    )
+  }
 
   // New subscription created via checkout
   if (event.type === 'checkout.session.completed') {
@@ -22,7 +30,7 @@ export async function POST(req: Request) {
     const plan = session.metadata?.plan || 'monthly'
     if (userId && session?.customer && session?.subscription) {
       const daysToAdd = plan === 'yearly' ? 365 : 30
-      await supabase.from('subscriptions').upsert({
+      const { error } = await supabase.from('subscriptions').upsert({
         user_id: userId,
         stripe_customer_id: session.customer,
         stripe_subscription_id: session.subscription,
@@ -30,6 +38,7 @@ export async function POST(req: Request) {
         status: 'active',
         current_period_end: new Date(Date.now() + daysToAdd * 86400000).toISOString(),
       }, { onConflict: 'stripe_subscription_id' })
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     }
   }
 

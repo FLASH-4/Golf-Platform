@@ -23,6 +23,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const charityMenuRef = useRef<HTMLDivElement | null>(null)
   const router = useRouter()
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
 
   useEffect(() => {
     fetch('/api/charities')
@@ -99,7 +100,7 @@ export default function SignupPage() {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/pricing?verified=true&plan=${plan}`,
+        emailRedirectTo: `${appUrl || window.location.origin}/pricing?verified=true&plan=${plan}`,
         data: {
           full_name: name,
         },

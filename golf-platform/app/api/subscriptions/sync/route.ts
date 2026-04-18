@@ -65,15 +65,17 @@ export async function POST(req: Request) {
       current_period_end: periodEnd,
     }
 
-    const { data: existingSub, error: existingSubError } = await writer
+    const { data: existingSubs, error: existingSubError } = await writer
       .from('subscriptions')
       .select('id')
       .eq('user_id', user.id)
-      .maybeSingle()
+      .limit(1)
 
     if (existingSubError) {
       return NextResponse.json({ error: existingSubError.message }, { status: 500 })
     }
+
+    const existingSub = Array.isArray(existingSubs) ? existingSubs[0] : null
 
     const { error } = existingSub
       ? await writer.from('subscriptions').update(payload).eq('id', existingSub.id)

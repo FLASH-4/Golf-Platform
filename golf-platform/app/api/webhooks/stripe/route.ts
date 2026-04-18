@@ -39,13 +39,15 @@ export async function POST(req: Request) {
         current_period_end: new Date(Date.now() + daysToAdd * 86400000).toISOString(),
       }
 
-      const { data: existingSub, error: existingSubError } = await supabase
+      const { data: existingSubs, error: existingSubError } = await supabase
         .from('subscriptions')
         .select('id')
         .eq('user_id', userId)
-        .maybeSingle()
+        .limit(1)
 
       if (existingSubError) return NextResponse.json({ error: existingSubError.message }, { status: 500 })
+
+      const existingSub = Array.isArray(existingSubs) ? existingSubs[0] : null
 
       const { error } = existingSub
         ? await supabase.from('subscriptions').update(payload).eq('id', existingSub.id)

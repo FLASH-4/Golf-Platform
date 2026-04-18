@@ -160,8 +160,6 @@ export default function SignupPage() {
       }
 
       if (rateLimit) {
-        const { error: signInFallbackError } = await supabase.auth.signInWithPassword({ email, password })
-        if (!signInFallbackError) { await startCheckout(); return }
         const isLocalDev = process.env.NODE_ENV !== 'production' && window.location.hostname === 'localhost'
         if (isLocalDev) {
           const devBypass = await fetch('/api/auth/dev-signup', {

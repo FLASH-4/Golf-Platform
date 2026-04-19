@@ -61,40 +61,70 @@ export default function SignupPage() {
   }, [])
 
   // awaitingVerification is set to true only after user submits the signup form
-  // and needs to verify email. This prevents the listener from firing on
-  // page load for users who are already logged in.
   const awaitingVerification = useRef(false)
 
-  // When user clicks the verification link (in any tab), Supabase broadcasts
-  // a SIGNED_IN / USER_UPDATED event via the shared localStorage channel.
-  // We catch it here and auto-redirect to checkout in the original signup tab.
+  // Poll for session every 3 seconds while waiting for email verification.
+  // This catches the case where the callback route set the session via cookies
+  // (server-side) which doesn't broadcast to the client localStorage channel.
   useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null
+
     const supabase = createClient()
+
+    // Also listen for client-side auth events (same-tab or localStorage broadcast)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Only act if user actually submitted signup and is waiting for verification
       if (!awaitingVerification.current) return
       if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user?.email_confirmed_at) {
-        setVerifying(true)
-        setNotice('Email verified! Taking you to payment...')
-        try {
-          const res = await fetch('/api/checkout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plan: planRef.current, countryCode: 'GB' }),
-          })
-          const d = await res.json()
-          if (d.url) {
-            window.location.href = d.url
-            return
-          }
-        } catch {
-          // fall through
-        }
-        // Fallback — redirect to pricing with plan so user can manually subscribe
-        window.location.href = `/pricing?verified=true&plan=${planRef.current}`
+        await goToCheckout()
       }
     })
-    return () => subscription.unsubscribe()
+
+    async function goToCheckout() {
+      if (!awaitingVerification.current) return
+      awaitingVerification.current = false // prevent double trigger
+      if (interval) clearInterval(interval)
+      setVerifying(true)
+      setNotice('Email verified! Taking you to payment...')
+      try {
+        const res = await fetch('/api/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan: planRef.current, countryCode: 'GB' }),
+        })
+        const d = await res.json()
+        if (d.url) {
+          window.location.href = d.url
+          return
+        }
+      } catch {
+        // fall through
+      }
+      window.location.href = `/pricing?verified=true&plan=${planRef.current}`
+    }
+
+    async function pollSession() {
+      if (!awaitingVerification.current) return
+      // getUser() hits the server directly — works even when verified on another device
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user?.email_confirmed_at) {
+        await goToCheckout()
+      }
+    }
+
+    // Start polling only when awaiting verification
+    const startPolling = () => {
+      if (interval) return
+      interval = setInterval(pollSession, 3000)
+    }
+
+    // Expose startPolling so handleSignup can trigger it
+    ;(window as any).__startVerificationPolling = startPolling
+
+    return () => {
+      subscription.unsubscribe()
+      if (interval) clearInterval(interval)
+      delete (window as any).__startVerificationPolling
+    }
   }, [])
 
   async function startCheckout() {
@@ -160,6 +190,8 @@ export default function SignupPage() {
       }
 
       if (rateLimit) {
+        const { error: signInFallbackError } = await supabase.auth.signInWithPassword({ email, password })
+        if (!signInFallbackError) { await startCheckout(); return }
         const isLocalDev = process.env.NODE_ENV !== 'production' && window.location.hostname === 'localhost'
         if (isLocalDev) {
           const devBypass = await fetch('/api/auth/dev-signup', {
@@ -203,10 +235,15 @@ export default function SignupPage() {
       }
 
       // New user awaiting email confirmation.
-      // Set the flag so onAuthStateChange knows to act when verification fires.
+      // Set flag and start polling — catches both localStorage broadcast
+      // and server-side cookie session set by /auth/callback route.
       awaitingVerification.current = true
-      setNotice('Check your email and click the verification link. This page will automatically continue to payment once you verify.')
+      setNotice('Check your email and click the verification link. This page will automatically continue to payment once verified.')
       setLoading(false)
+      // Start the 3-second session poll
+      if (typeof window !== 'undefined' && (window as any).__startVerificationPolling) {
+        ;(window as any).__startVerificationPolling()
+      }
       return
     }
 

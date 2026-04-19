@@ -42,7 +42,8 @@ export default async function CharitiesPage({ searchParams }: { searchParams: Pr
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
           {charities?.map(c => (
-            <div key={c.id} className="hover-card" style={{ background: 'var(--gray-1)', border: '1px solid var(--gray-3)', borderRadius: '4px', overflow: 'hidden', transition: 'border-color 0.2s', display: 'flex', flexDirection: 'column' }}>
+            <Link key={c.id} href={`/charities/${c.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+            <div className="hover-card" style={{ background: 'var(--gray-1)', border: '1px solid var(--gray-3)', borderRadius: '4px', overflow: 'hidden', transition: 'border-color 0.2s', display: 'flex', flexDirection: 'column', height: '100%', cursor: 'pointer' }}>
               {c.image_url && (
                 <div style={{ height: '180px', background: 'var(--gray-2)', overflow: 'hidden' }}>
                   <img src={c.image_url} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -65,6 +66,7 @@ export default async function CharitiesPage({ searchParams }: { searchParams: Pr
                 )}
               </div>
             </div>
+            </Link>
           ))}
         </div>
       </div>

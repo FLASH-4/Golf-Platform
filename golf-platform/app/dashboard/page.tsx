@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 type Score = { id: string; score: number; score_date: string }
-type Profile = { full_name: string; email: string; charity_percentage: number; charity_id: string | null }
+type Profile = { full_name: string; email: string; charity_percentage: number; charity_id: string | null; role: string }
 type Subscription = { plan: string; status: string; current_period_end: string }
 type Charity = { id: string; name: string }
 type DrawEntry = { id: string; scores: number[]; matches: number; prize_tier: string | null; prize_amount: number; draws: { draw_date: string; status: string; winning_numbers: number[] } }
@@ -197,7 +197,12 @@ export default function DashboardPage() {
               </span>
             </div>
           </div>
-          <button onClick={signOut} style={{ background: 'transparent', border: 'none', color: 'var(--gray-5)', fontSize: '13px', cursor: 'pointer', padding: '8px 12px', width: '100%', textAlign: 'left', fontFamily: 'DM Sans, sans-serif' }}>Sign out →</button>
+          {profile?.role === 'admin' && (
+            <Link href="/admin" style={{ display: 'block', color: 'var(--lime)', fontSize: '13px', padding: '8px 12px', textDecoration: 'none', marginBottom: '4px' }}>
+                ← Admin panel
+            </Link>
+        )}
+        <button onClick={signOut} style={{ background: 'transparent', border: 'none', color: 'var(--gray-5)', fontSize: '13px', cursor: 'pointer', padding: '8px 12px', width: '100%', textAlign: 'left', fontFamily: 'DM Sans, sans-serif' }}>Sign out →</button>
         </div>
       </div>
 
